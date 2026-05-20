@@ -6,7 +6,7 @@ export const AuthContext = createContext(null)
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(false )
   const [error, setError] = useState(null)
 
   // Simple check for current user on mount

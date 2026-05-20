@@ -1,180 +1,140 @@
 import React, { useState, useEffect } from 'react'
 import { AdminLayout } from '../components/Layout'
-import { getHighRiskMessages } from '../utils/databaseUtils'
-import { AlertCircle } from 'lucide-react'
+import { getAllAssessments } from '../utils/databaseUtils'
+import { AlertCircle, Users, Eye, EyeOff } from 'lucide-react'
+
+// PANSAMANTALANG MOCK DATA LINKER habang wala pa ang production database mo
+const MOCK_USERS_DATABASE = {
+  "usr-1": { name: "John kurby Morales", email: "johnkurby@school.edu.ph" },
+  "usr-2": { name: "Ana Reyes", email: "ana.reyes@school.edu.ph" },
+  "usr-3": { name: "Juan Dela Cruz", email: "juan.delacruz@school.edu.ph" },
+  "usr-4": { name: "Carlo Mendoza", email: "carlo.mendoza@school.edu.ph" },
+  "usr-5": { name: "Maria Santos", email: "maria.santos@school.edu.ph" },
+}
 
 const AdminRiskMonitoringPage = () => {
-  const [riskMessages, setRiskMessages] = useState([])
+  const [highRiskAssessments, setHighRiskAssessments] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('all') // 'all' or 'recent'
 
   useEffect(() => {
-    const fetchRiskMessages = async () => {
-      const { riskMessages: data } = await getHighRiskMessages()
-      setRiskMessages(data || [])
+    const fetchHighRiskData = async () => {
+      // Kuhanin ang lahat ng assessments
+      const { assessments: data } = await getAllAssessments(null)
+      
+      // I-map ang pangalan mula sa mock database gamit ang user_id
+      const linkedData = (data || []).map(assessment => {
+        const matchedUser = MOCK_USERS_DATABASE[assessment.user_id];
+        return {
+          ...assessment,
+          resolved_name: matchedUser ? matchedUser.name : (assessment.student_name || 'Unknown Student'),
+          resolved_email: matchedUser ? matchedUser.email : (assessment.users?.email || 'N/A')
+        }
+      })
+
+      // I-FILTER: Moderate o High stress levels lamang ang ipapakita sa ledger na ito
+      const filtered = linkedData.filter(
+        item => item.stress_level === 'High' || item.stress_level === 'Moderate'
+      )
+
+      setHighRiskAssessments(filtered)
       setLoading(false)
     }
 
-    fetchRiskMessages()
+    setLoading(true)
+    fetchHighRiskData()
   }, [])
 
-  const filteredMessages =
-    filter === 'recent'
-      ? riskMessages.slice(0, 10)
-      : riskMessages
-
-  const getRiskSeverity = (message) => {
-    const lowerMessage = message.toLowerCase()
-    if (
-      lowerMessage.includes('want to die') ||
-      lowerMessage.includes('want to end my life') ||
-      lowerMessage.includes('kill myself') ||
-      lowerMessage.includes('suicide')
-    ) {
-      return 'CRITICAL'
-    }
-    if (
-      lowerMessage.includes('harm') ||
-      lowerMessage.includes('cut') ||
-      lowerMessage.includes('no point living')
-    ) {
-      return 'HIGH'
-    }
-    return 'ALERT'
-  }
-
-  const severityColor = {
-    CRITICAL: 'bg-red-100 border-red-300 text-red-900',
-    HIGH: 'bg-orange-100 border-orange-300 text-orange-900',
-    ALERT: 'bg-yellow-100 border-yellow-300 text-yellow-900',
-  }
-
-  const severityBadgeColor = {
-    CRITICAL: 'bg-red-600 text-white',
-    HIGH: 'bg-orange-600 text-white',
-    ALERT: 'bg-yellow-600 text-white',
+  // Dynamic Tailwind style badges base sa na-detect na system level
+  const stressLevelColor = {
+    Moderate: 'bg-orange-50 text-orange-500 border-orange-100',
+    High: 'bg-red-50 text-red-400 border-red-100',
   }
 
   return (
-    <AdminLayout pageTitle="High-Risk Monitoring">
-      {/* Warning Banner */}
-      <div className="mb-8 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
-        <div className="flex items-start gap-3">
-          <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <h3 className="font-bold text-red-900 mb-1">Crisis Detection System</h3>
-            <p className="text-red-800 text-sm">
-              This system monitors chatbot messages for crisis keywords and flags potential high-risk cases.
-              Follow up immediately with any flagged students. If immediate danger is suspected, contact
-              emergency services.
-            </p>
-          </div>
-        </div>
+    <AdminLayout pageTitle={
+      <div className="flex items-center gap-2 text-gray-800">
+        <AlertCircle className="w-6 h-6 text-red-500 stroke-[2]" />
+        <span>High-Risk Indicators</span>
+      </div>
+    }>
+      <p className="text-gray-500 text-sm mb-6 -mt-2">
+        Students with Moderate or High stress levels that may need face-to-face consultation.
+      </p>
+
+      {/* Important Warning Alert Banner */}
+      <div className="mb-6 p-4 bg-amber-50/60 border border-amber-200/80 rounded-xl">
+        <p className="text-amber-800 text-xs leading-relaxed font-medium">
+          <strong className="text-amber-900 font-bold">Important:</strong> These flags are used ONLY as reference for face-to-face consultations. This system does NOT automatically diagnose or label students. Final assessment must be done by a qualified counselor.
+        </p>
       </div>
 
-      {/* Filters */}
-      <div className="card mb-8">
-        <h3 className="text-lg font-bold text-gray-900 mb-4">Filters</h3>
-        <div className="flex gap-4">
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              filter === 'all'
-                ? 'bg-teal-600 text-white'
-                : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-            }`}
-          >
-            All Messages ({riskMessages.length})
-          </button>
-          <button
-            onClick={() => setFilter('recent')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              filter === 'recent'
-                ? 'bg-teal-600 text-white'
-                : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-            }`}
-          >
-            Recent (10)
-          </button>
-        </div>
-      </div>
-
-      {/* Risk Messages */}
+      {/* High-Risk Assessment List Container */}
       {loading ? (
-        <div className="card text-center py-8">
-          <p className="text-gray-600">Loading risk data...</p>
+        <div className="bg-white rounded-xl border border-gray-100 p-12 text-center text-sm text-gray-400">
+          Loading high-risk indicator records...
         </div>
-      ) : riskMessages.length === 0 ? (
-        <div className="card border-2 border-green-200 bg-green-50 text-center py-8">
-          <div className="text-4xl mb-3">✅</div>
-          <p className="text-green-900 font-medium">No High-Risk Cases Detected</p>
-          <p className="text-green-800 text-sm mt-2">
-            All students appear to be in a safe state. Continue monitoring.
+      ) : highRiskAssessments.length === 0 ? (
+        <div className="bg-emerald-50/40 border border-emerald-100 rounded-xl p-12 text-center">
+          <div className="text-3xl mb-2">✅</div>
+          <p className="text-emerald-900 font-bold text-sm">No High-Risk Cases Detected</p>
+          <p className="text-emerald-700 text-xs mt-1">
+            All student submissions are currently at normal or safe stress thresholds.
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {filteredMessages.map((log, idx) => {
-            const severity = getRiskSeverity(log.message)
+        <div className="space-y-3">
+          {highRiskAssessments.map((assessment, index) => {
+            const isAnonymous = assessment.anonymous === true
+            const studentName = isAnonymous ? 'Anonymous (no consent)' : assessment.resolved_name
+            const stressLevel = assessment.stress_level || 'Moderate'
+
             return (
-              <div
-                key={log.id}
-                className={`card border-2 ${severityColor[severity]} p-4`}
+              <div 
+                key={assessment.id || index}
+                className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-4 hover:border-gray-200 transition-all"
               >
-                <div className="flex items-start gap-4">
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${severityBadgeColor[severity]}`}>
-                    {severity}
-                  </span>
+                {/* Left Side: Avatar Icon and Student Info Block */}
+                <div className="flex items-center gap-4">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center border shrink-0 ${
+                    isAnonymous 
+                      ? 'bg-red-50 border-red-100 text-red-400' 
+                      : 'bg-orange-50 border-orange-100 text-orange-400'
+                  }`}>
+                    {isAnonymous ? <EyeOff className="w-5 h-5" /> : <Users className="w-5 h-5" />}
+                  </div>
 
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h4 className="font-bold text-gray-900">
-                          {log.users?.consent_status ? log.users.name : 'Anonymous Student'}
-                        </h4>
-                        {log.users?.consent_status && (
-                          <p className="text-xs text-gray-600 mt-1">{log.users.email}</p>
-                        )}
-                      </div>
-                      <time className="text-xs text-gray-600">
-                        {new Date(log.created_at).toLocaleString()}
-                      </time>
-                    </div>
-
-                    <div className="bg-white rounded p-3 mb-3 border-l-4 border-current">
-                      <p className="text-sm font-medium mb-2 text-gray-700">Student's Message:</p>
-                      <p className="text-sm text-gray-900 italic">"{log.message}"</p>
-                    </div>
-
-                    <div className="bg-white rounded p-3 border-l-4 border-current">
-                      <p className="text-sm font-medium mb-2 text-gray-700">AI Response:</p>
-                      <p className="text-sm text-gray-900 italic">"{log.response}"</p>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {log.users?.consent_status ? (
-                        <>
-                          <a
-                            href={`mailto:${log.users.email}`}
-                            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded font-medium"
-                          >
-                            Email Student
-                          </a>
-                          <button className="px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white text-xs rounded font-medium">
-                            Schedule Counseling
-                          </button>
-                        </>
-                      ) : (
-                        <p className="text-xs text-gray-600 italic">
-                          Student identity not available (no consent given)
-                        </p>
-                      )}
-                      <button className="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white text-xs rounded font-medium">
-                        Mark as Addressed
-                      </button>
+                  <div>
+                    <h4 className={`text-sm font-bold ${isAnonymous ? 'text-gray-500 italic' : 'text-gray-800'}`}>
+                      {studentName}
+                    </h4>
+                    <div className="flex items-center gap-2 mt-0.5 text-gray-400 text-xs font-medium">
+                      <span>
+                        {new Date(assessment.created_at).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                      </span>
+                      <span>•</span>
+                      <span>
+                        {new Date(assessment.created_at).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
                     </div>
                   </div>
+                </div>
+
+                {/* Right Side: Score Metrics & Stress Badge */}
+                <div className="flex items-center gap-6">
+                  <span className="text-sm font-bold text-gray-800 tracking-tight">
+                    {assessment.percentage || 0}%
+                  </span>
+                  
+                  <span className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full border min-w-[85px] text-center capitalize ${stressLevelColor[stressLevel]}`}>
+                    {stressLevel.toLowerCase()}
+                  </span>
                 </div>
               </div>
             )
@@ -182,52 +142,14 @@ const AdminRiskMonitoringPage = () => {
         </div>
       )}
 
-      {/* Emergency Resources */}
-      <div className="mt-8 card border-2 border-red-200 bg-red-50">
-        <h3 className="text-lg font-bold text-red-900 mb-4">Emergency Resources</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white rounded p-4 border-l-4 border-red-600">
-            <p className="font-bold text-red-900">National Suicide Prevention Lifeline </p>
-            <p className="text-lg font-bold text-red-600 mt-1">988</p>
-            <p className="text-xs text-gray-600 mt-2">Call or text anytime, day or night</p>
-          </div>
-          <div className="bg-white rounded p-4 border-l-4 border-red-600">
-            <p className="font-bold text-red-900">Crisis Text Line </p>
-            <p className="text-lg font-bold text-red-600 mt-1">Text HOME to 741741</p>
-            <p className="text-xs text-gray-600 mt-2">Text-based crisis support</p>
-          </div>
-          <div className="bg-white rounded p-4 border-l-4 border-red-600">
-            <p className="font-bold text-red-900">Emergency Services</p>
-            <p className="text-lg font-bold text-red-600 mt-1">911  or Local Emergency</p>
-            <p className="text-xs text-gray-600 mt-2">For immediate life-threatening situations</p>
-          </div>
-          <div className="bg-white rounded p-4 border-l-4 border-red-600">
-            <p className="font-bold text-red-900">School Crisis Protocol</p>
-            <p className="text-lg font-bold text-red-600 mt-1">Contact Administration</p>
-            <p className="text-xs text-gray-600 mt-2">Follow your school's crisis management procedures</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Protocol Guidelines */}
-      <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-gray-700">
-        <p className="font-medium mb-3">Recommended Response Protocol:</p>
-        <ol className="list-decimal list-inside space-y-2 text-xs">
-          <li>
-            <strong>CRITICAL Risk:</strong> Immediately contact student, parent/guardian, and school administration.
-            Consider emergency services referral.
-          </li>
-          <li>
-            <strong>HIGH Risk:</strong> Schedule urgent counseling session within 24 hours. Monitor student closely.
-          </li>
-          <li>
-            <strong>ALERT:</strong> Schedule standard counseling appointment. Provide resources and support.
-          </li>
-          <li>Document all interventions and follow-ups for student records.</li>
-          <li>
-            Maintain confidentiality while ensuring student safety is the priority.
-          </li>
-        </ol>
+      {/* Recommended Standard Protocol Directive Section */}
+      <div className="mt-6 p-4 bg-gray-50 border border-gray-100 rounded-xl text-[11px] text-gray-400 leading-relaxed shadow-inner">
+        <p className="font-bold text-gray-500 mb-1">Recommended Response Protocol:</p>
+        <ul className="list-disc list-inside space-y-0.5 pl-1">
+          <li><strong className="text-gray-500 font-semibold">HIGH Risk Submissions:</strong> Prioritize for urgent counseling.</li>
+          <li><strong className="text-gray-500 font-semibold">MODERATE Risk Submissions:</strong> Schedule standard check-in updates and provide local self-care materials.</li>
+          <li>Always coordinate with school administrative workflows before initiating emergency escalations.</li>
+        </ul>
       </div>
     </AdminLayout>
   )

@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { LogOut, Menu, X, Home, BarChart3, Users,Smile, MessagesSquare, AlertTriangle, Dumbbell,} from 'lucide-react'
+import { LogOut, Menu, X, Home, BarChart3, Users, Smile, MessagesSquare, AlertTriangle, BookOpen } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { signOut } from '../utils/authUtils'
 
@@ -14,7 +14,7 @@ const Sidebar = ({ isOpen, setIsOpen, isStudent = true }) => {
     { label: 'Assessment', href: '/assessment', icon: BarChart3 },
     { label: 'Mood Tracker', href: '/mood-tracker', icon: Smile },
     { label: 'AI Chat', href: '/chat', icon: MessagesSquare },
-    { label: 'Coping Strategies', href: '/coping-strategies', icon: Dumbbell },
+    { label: 'Coping Strategies', href: '/coping-strategies', icon: BookOpen },
   ]
 
   const adminLinks = [
@@ -40,35 +40,27 @@ const Sidebar = ({ isOpen, setIsOpen, isStudent = true }) => {
           isOpen ? 'translate-x-0' : '-translate-x-full'
         } lg:translate-x-0`}
       >
-       <div className="p-6 flex-1 overflow-y-auto">
+        <div className="p-6 flex-1 overflow-y-auto">
+          <div className="flex items-center gap-3 mb-8 flex-shrink-0">
+            {/* Logo */}
+            <div className="w-12 h-12 rounded-full overflow-hidden shadow-md flex-shrink-0">
+              <img
+                src="/gordon-college-logo.png"
+                alt="MindMate Logo"
+                className="w-full h-full object-cover"
+              />
+            </div>
 
-  <div className="flex items-center gap-3 mb-8 flex-shrink-0">
-
-    {/* Logo */}
-    <div className="w-12 h-12 rounded-full overflow-hidden shadow-md flex-shrink-0">
-
-      <img
-         src="/mindmate/public/gordon college logo.png"
-        alt="MindMate Logo"
-        className="w-full h-full object-cover"
-      />
-
-    </div>
-
-    {/* Text */}
-    <div className="min-w-0">
-
-      <h1 className="font-bold text-lg truncate">
-        MindMate
-      </h1>
-
-      <p className="text-xs text-teal-200 truncate">
-        {isStudent ? 'Student Portal' : 'Admin Portal'}
-      </p>
-
-    </div>
-
-  </div>
+            {/* Text */}
+            <div className="min-w-0">
+              <h1 className="font-bold text-lg truncate">
+                MindMate
+              </h1>
+              <p className="text-xs text-teal-200 truncate">
+                {isStudent ? 'Student Portal' : 'Admin Portal'}
+              </p>
+            </div>
+          </div>
 
           <nav className="space-y-2">
             {links.map((link) => (
@@ -93,17 +85,24 @@ const Sidebar = ({ isOpen, setIsOpen, isStudent = true }) => {
           </nav>
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-teal-700">
-          <div className="mb-4 p-3 bg-teal-700 rounded-lg">
-            <p className="text-sm text-teal-100">Signed in as:</p>
-            <p className="font-medium text-white truncate">{profile?.name || profile?.email}</p>
-          </div>
+        {/* Bottom Section */}
+        <div className="p-6 border-t border-teal-700/60 bg-teal-800 flex-shrink-0">
+          {/* Ipinapakita lang ang Educational Disclaimer kapag Student Dash */}
+          {isStudent && (
+            <div className="mb-4 p-3 bg-teal-900/30 border border-teal-700/40 rounded-xl">
+              <p className="text-[11px] text-teal-100/90 leading-relaxed font-medium text-center italic">
+                This system is for educational and support purposes only and is not a substitute for professional mental health services.
+              </p>
+            </div>
+          )}
+          
+          {/* Sign Out Button - Nagiging red-600 lang kapag na-hover o natapatan ng arrow */}
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+            className="w-full flex items-center justify-center gap-2 bg-transparent border border-teal-600 hover:bg-red-600 hover:border-red-600 text-teal-100 hover:text-white font-medium py-2 px-4 rounded-xl transition-all duration-200"
           >
             <LogOut className="w-4 h-4" />
-            Sign Out
+            <span className="text-sm">Sign Out</span>
           </button>
         </div>
       </div>

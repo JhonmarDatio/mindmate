@@ -3,35 +3,63 @@ import { StudentLayout } from '../components/Layout'
 import { useAuth } from '../contexts/AuthContext'
 import { saveChatMessage, getUserChatHistory } from '../utils/databaseUtils'
 import { processChatMessage, HOTLINE_INFO } from '../utils/chatbotUtils'
-import { Send, AlertCircle } from 'lucide-react'
+import { Send, AlertTriangle, Bot, User, Loader2 } from 'lucide-react'
+
+const DISTRESS_KEYWORDS = [
+  'suicide',
+  'kill myself',
+  'want to die',
+  'end my life',
+  'self-harm',
+  'hurt myself',
+  'hopeless',
+  'give up',
+  'no reason to live',
+]
+
+const detectDistress = (text) => {
+  return DISTRESS_KEYWORDS.some((keyword) => text.toLowerCase().includes(keyword))
+}
 
 const ChatPage = () => {
   const { user } = useAuth()
-  const [messages, setMessages] = useState([])
+  const [messages, setMessages] = useState([
+    {
+      id: 'assistant-1',
+      role: 'assistant',
+      content: "Hi there! 😊 I'm MindMate, your friendly AI companion. I'm here to listen and support you. How are you feeling today?",
+    },
+  ])
   const [inputValue, setInputValue] = useState('')
   const [loading, setLoading] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(true)
+  const [riskDetected, setRiskDetected] = useState(false)
   const [showCrisisAlert, setShowCrisisAlert] = useState(false)
   const [crisisMessage, setCrisisMessage] = useState(null)
-  const messagesEndRef = useRef(null)
+  const scrollRef = useRef(null)
 
-  // Load chat history
   useEffect(() => {
     const fetchChatHistory = async () => {
       if (user) {
         const { chats } = await getUserChatHistory(user.id)
         if (chats) {
           const formattedMessages = chats.flatMap((chat) => [
-            { id: `${chat.id}-user`, text: chat.message, sender: 'user', timestamp: chat.created_at },
             {
-              id: `${chat.id}-bot`,
-              text: chat.response,
-              sender: 'bot',
+              id: `${chat.id}-user`,
+              role: 'user',
+              content: chat.message,
+              timestamp: chat.created_at,
+            },
+            {
+              id: `${chat.id}-assistant`,
+              role: 'assistant',
+              content: chat.response,
               timestamp: chat.created_at,
               isRisk: chat.risk_flag,
             },
           ])
           setMessages(formattedMessages)
+          setRiskDetected(formattedMessages.some((m) => m.isRisk))
         }
         setHistoryLoading(false)
       }
@@ -40,183 +68,224 @@ const ChatPage = () => {
     fetchChatHistory()
   }, [user])
 
-  // Scroll to bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
   const handleSendMessage = async (e) => {
     e.preventDefault()
+    if (!inputValue.trim() || loading) return
 
-    if (!inputValue.trim()) return
-
+    const userMessage = {
+      id: `${Date.now()}-user`,
+      role: 'user',
+      content: inputValue.trim(),
+      timestamp: new Date().toISOString(),
+    }
+    const nextMessages = [...messages, userMessage]
+    setMessages(nextMessages)
+    setInputValue('')
     setLoading(true)
 
-    try {
-      // Add user message
-      const userMessage = {
-        id: Date.now() + 'user',
-        text: inputValue,
-        sender: 'user',
-        timestamp: new Date().toISOString(),
-      }
-
-      setMessages((prev) => [...prev, userMessage])
-
-      // Process message with chatbot logic
-      const response = processChatMessage(inputValue)
-
-      // Add bot message
-      const botMessage = {
-        id: Date.now() + 'bot',
-        text: response.response,
-        sender: 'bot',
-        timestamp: new Date().toISOString(),
-        isRisk: response.riskFlag,
-        resources: response.resources,
-      }
-
-      setMessages((prev) => [...prev, botMessage])
-
-      // Save to database
-      await saveChatMessage(user.id, inputValue, response.response, response.riskFlag)
-
-      // Show crisis alert if needed
-      if (response.isCrisis) {
-        setShowCrisisAlert(true)
-        setCrisisMessage(response)
-      }
-
-      setInputValue('')
-    } catch (error) {
-      console.error('Error sending message:', error)
-    } finally {
-      setLoading(false)
+    const isDistress = detectDistress(userMessage.content)
+    if (isDistress) {
+      setRiskDetected(true)
     }
+
+    const response = processChatMessage(userMessage.content)
+
+    const assistantMessage = {
+      id: `${Date.now()}-assistant`,
+      role: 'assistant',
+      content: response.response,
+      timestamp: new Date().toISOString(),
+      isRisk: response.riskFlag,
+    }
+
+    setMessages((prev) => [...prev, assistantMessage])
+    await saveChatMessage(user.id, userMessage.content, response.response, response.riskFlag)
+
+    if (response.isCrisis) {
+      setShowCrisisAlert(true)
+      setCrisisMessage(response)
+    }
+
+    setLoading(false)
   }
 
   return (
-    <StudentLayout pageTitle="MindMate Chat - Your AI Support Companion">
-      <div className="flex flex-col h-full gap-4 max-w-4xl mx-auto">
-        {/* Crisis Alert */}
-        {showCrisisAlert && crisisMessage && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
-              <div className="flex items-start gap-4 mb-4">
-                <AlertCircle className="w-8 h-8 text-red-600 flex-shrink-0" />
-                <div>
-                  <h3 className="font-bold text-lg text-red-600">Crisis Support Available</h3>
-                  <p className="text-gray-700 text-sm mt-2">
-                    I'm deeply concerned about what you've shared. Your safety is the most important thing.
+    <StudentLayout>
+      {/* Header */}
+      <div className="flex-shrink-0 p-4 md:p-6 border-b border-border bg-white/70 backdrop-blur">
+        <div className="max-w-3xl mx-auto flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+            <Bot className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="font-heading text-xl font-semibold text-foreground">
+              MindMate Chat
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Your supportive AI companion
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Chat container centered */}
+      <main className="flex-1 flex items-stretch justify-center">
+        <section className="w-full max-w-3xl rounded-3xl overflow-hidden bg-white shadow-sm flex flex-col">
+          <div className="flex-1 h-0 overflow-y-auto p-4 md:p-6">
+            {riskDetected && (
+              <div className="p-4 rounded-3xl bg-destructive/5 border border-destructive/20 flex items-start gap-3 mb-4">
+                <AlertTriangle className="w-5 h-5 text-destructive mt-0.5" />
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <p className="font-semibold text-destructive">
+                    If you're in crisis, please reach out for help:
+                  </p>
+                  <p>
+                    Contact your guidance counselor, a trusted teacher, or call a
+                    crisis hotline.
                   </p>
                 </div>
               </div>
+            )}
 
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                <p className="font-bold text-red-900 mb-3">Please reach out immediately:</p>
-                <div className="space-y-2 text-sm">
-                  {crisisMessage.resources?.slice(0, 2).map((resource, idx) => (
-                    <div key={idx}>
-                      <p className="font-medium text-red-900">{resource.name}</p>
-                      <p className="text-red-800">{resource.number}</p>
-                    </div>
-                  ))}
+            {historyLoading ? (
+              <div className="flex h-72 items-center justify-center">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading chat history...
                 </div>
               </div>
-
-              <button
-                onClick={() => setShowCrisisAlert(false)}
-                className="w-full btn-primary"
-              >
-                I Will Reach Out for Help
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Chat Container */}
-        <div className="flex-1 card overflow-y-auto max-h-96 md:max-h-[500px] bg-gray-50">
-          {historyLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-gray-500">Loading chat history...</p>
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full gap-4">
-              <div className="text-4xl">💬</div>
-              <p className="text-gray-600 text-center">
-                Welcome to MindMate! I'm here to listen and support you. How are you feeling today?
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4 p-4">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
+            ) : (
+              <div className="space-y-4">
+                {messages.map((msg) => (
                   <div
-                    className={`max-w-xs md:max-w-md lg:max-w-lg px-4 py-3 rounded-lg ${
-                      message.sender === 'user'
-                        ? 'bg-teal-600 text-white rounded-br-none'
-                        : `${
-                            message.isRisk ? 'bg-red-100 text-red-900' : 'bg-white text-gray-900 border border-gray-200'
-                          } rounded-bl-none`
+                    key={msg.id}
+                    className={`flex gap-3 ${
+                      msg.role === "user" ? "justify-end" : "justify-start"
                     }`}
                   >
-                    <p className="text-sm">{message.text}</p>
+                    {msg.role === "assistant" && (
+                      <div className="w-9 h-9 rounded-2xl bg-primary/10 flex items-center justify-center flex-shrink-0 mt-1">
+                        <Bot className="w-4 h-4 text-primary" />
+                      </div>
+                    )}
+
+                    <div
+                      className={`max-w-[85%] px-5 py-4 rounded-[32px] text-sm leading-relaxed shadow-sm ${
+                        msg.role === "user"
+                          ? "bg-primary text-primary-foreground rounded-br-none"
+                          : "bg-white border border-border rounded-bl-none"
+                      }`}
+                    >
+                      {msg.content}
+                    </div>
+
+                    {msg.role === "user" && (
+                      <div className="w-9 h-9 rounded-2xl bg-accent/10 flex items-center justify-center flex-shrink-0 mt-1">
+                        <User className="w-4 h-4 text-accent" />
+                      </div>
+                    )}
                   </div>
+                ))}
+
+                {loading && (
+                  <div className="flex gap-3">
+                    <div className="w-9 h-9 rounded-2xl bg-primary/10 flex items-center justify-center flex-shrink-0 mt-1">
+                      <Bot className="w-4 h-4 text-primary" />
+                    </div>
+
+                    <div className="bg-white border border-border rounded-[32px] px-5 py-4 text-sm text-muted-foreground shadow-sm">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                        MindMate is typing...
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div ref={scrollRef} />
+              </div>
+            )}
+          </div>
+
+          {/* Input area */}
+          <footer className="flex-shrink-0 p-4 md:p-6 border-t border-border bg-white">
+            <form
+              onSubmit={handleSendMessage}
+              className="max-w-full mx-auto relative flex items-center"
+            >
+              <input
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder="Type your message..."
+                disabled={loading}
+                className="flex-1 rounded-full border border-border bg-background pl-5 pr-14 py-3.5 text-sm text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+              />
+
+              {/* FIXED POSITIONED ARROW BUTTON: Gumagamit ng system variables para kakulay ng overall template mo */}
+            <button
+               type="submit"
+                 disabled={!inputValue.trim() || loading}
+                 className={`absolute right-4 p-2.5 rounded-full transition-all duration-200 inline-flex items-center justify-center shadow-sm
+                  ${inputValue.trim() && !loading
+                ? 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-105 active:scale-95'
+                   : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    }`}
+                             >
+                             <Send className="w-4 h-4 stroke-[2.5]" />
+</button>
+            </form>
+
+            <p className="text-[10px] text-muted-foreground text-center mt-3">
+              MindMate is an AI assistant and does not provide medical diagnoses.
+              For emergencies, contact your guidance counselor or <br /> <span className="text-red-600 font-bold">(National Center for Mental Health (NCMH) Crisis Hotline 1553)</span>
+            </p>
+          </footer>
+        </section>
+      </main>
+
+      {/* Crisis modal */}
+      {showCrisisAlert && crisisMessage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start gap-4 mb-4">
+              <AlertTriangle className="w-6 h-6 text-destructive" />
+              <div>
+                <h3 className="text-lg font-semibold text-destructive">
+                  Crisis Support Available
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  I'm concerned about what you shared. Your safety matters most.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-2xl bg-destructive/5 p-4">
+              {crisisMessage.resources?.slice(0, 2).map((resource, idx) => (
+                <div key={idx}>
+                  <p className="font-medium text-destructive">
+                    {resource.name}
+                  </p>
+                  <p className="text-sm text-destructive/80">
+                    {resource.number}
+                  </p>
                 </div>
               ))}
-
-              {/* Crisis Resources */}
-              {messages.some((m) => m.isRisk) && (
-                <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 my-4">
-                  <h4 className="font-bold text-red-900 mb-3">Support Resources:</h4>
-                  <div className="space-y-2 text-sm">
-                    {HOTLINE_INFO.map((info, idx) => (
-                      <div key={idx} className="bg-white p-3 rounded border border-red-200">
-                        <p className="font-medium text-red-900">{info.name}</p>
-                        {info.number && <p className="text-red-800">{info.number}</p>}
-                        {info.available && <p className="text-xs text-red-700">{info.available}</p>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div ref={messagesEndRef} />
             </div>
-          )}
-        </div>
 
-        {/* Input Form */}
-        <form onSubmit={handleSendMessage} className="flex gap-2">
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Type your message here..."
-            disabled={loading}
-            className="flex-1 input-field disabled:opacity-50"
-          />
-          <button
-            type="submit"
-            disabled={loading || !inputValue.trim()}
-            className="p-3 bg-teal-600 hover:bg-teal-700 disabled:bg-gray-400 text-white rounded-lg transition-colors disabled:cursor-not-allowed"
-          >
-            <Send className="w-5 h-5" />
-          </button>
-        </form>
-
-        {/* Disclaimer */}
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-gray-700">
-          <p className="font-medium mb-1">About MindMate Chat:</p>
-          <p>
-            This is an AI-powered support chat and is not a substitute for professional mental health
-            counseling. If you're in crisis, please call emergency services or a crisis hotline immediately.
-          </p>
+            <button
+              onClick={() => setShowCrisisAlert(false)}
+              className="mt-5 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-white transition hover:bg-primary/90"
+            >
+              I will reach out for help
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </StudentLayout>
   )
 }
