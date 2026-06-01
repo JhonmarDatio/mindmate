@@ -246,7 +246,7 @@ export const getAllAssessments = async (filterStressLevel = null, filterDate = n
   try {
     let query = supabase
       .from('assessments')
-      .select('*')
+      .select('id, user_id, score, percentage, stress_level, consent_status, intervention_done, created_at, domain_scores')
       .eq('consent_status', true)
       .order('created_at', { ascending: false })
 
@@ -264,11 +264,9 @@ export const getAllAssessments = async (filterStressLevel = null, filterDate = n
       .select('id, name, email')
       .in('id', userIds)
 
-    // Build a lookup map
     const profileMap = {}
     ;(profilesData || []).forEach((p) => { profileMap[p.id] = p })
 
-    // Merge profile data into each assessment
     const assessments = assessmentData.map((a) => ({
       ...a,
       student_name:  profileMap[a.user_id]?.name  || null,
@@ -367,6 +365,20 @@ export const deleteUser = async (userId) => {
       .from('profiles')
       .delete()
       .eq('id', userId)
+
+    if (error) return { success: false, error: error.message }
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+}
+
+export const markInterventionDone = async (assessmentId) => {
+  try {
+    const { error } = await supabase
+      .from('assessments')
+      .update({ intervention_done: true })
+      .eq('id', assessmentId)
 
     if (error) return { success: false, error: error.message }
     return { success: true }
