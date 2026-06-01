@@ -12,32 +12,32 @@ import MoodTrackerPage from './pages/MoodTrackerPage'
 import ChatPage from './pages/ChatPage'
 import CopingStrategiesPage from './pages/CopingStrategiesPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
+
+// Counselor pages (previously "Admin")
 import AdminDashboard from './pages/AdminDashboard'
 import AdminAssessmentsPage from './pages/AdminAssessmentsPage'
 import AdminRiskMonitoringPage from './pages/AdminRiskMonitoringPage'
+
+// Super Admin pages
+import SuperAdminDashboard from './pages/SuperAdminDashboard'
+import SuperAdminUsersPage from './pages/SuperAdminUsersPage'
 
 // Protected Route Component
 const ProtectedRoute = ({ children, requiredRole = null }) => {
   const { isAuthenticated, loading, profile } = useAuth()
 
-  console.log('ProtectedRoute:', { loading, isAuthenticated, profile, requiredRole })
+  if (loading) return <LoadingSpinner />
 
-  if (loading) {
-    console.log('ProtectedRoute: Still loading...')
-    return <LoadingSpinner />
-  }
-
-  if (!isAuthenticated) {
-    console.log('ProtectedRoute: Not authenticated, redirecting to login')
-    return <Navigate to="/login" replace />
-  }
+  if (!isAuthenticated) return <Navigate to="/login" replace />
 
   if (requiredRole && profile?.role !== requiredRole) {
-    console.log('ProtectedRoute: Role mismatch. Required:', requiredRole, 'Actual:', profile?.role)
+    // Redirect each role to their own home
+    const role = profile?.role
+    if (role === 'superadmin') return <Navigate to="/superadmin" replace />
+    if (role === 'counselor') return <Navigate to="/counselor" replace />
     return <Navigate to="/" replace />
   }
 
-  console.log('ProtectedRoute: Access granted, rendering children')
   return children
 }
 
@@ -101,28 +101,51 @@ const App = () => {
             }
           />
 
-          {/* Admin Routes */}
+          {/* Counselor Routes (previously /admin) */}
           <Route
-            path="/admin"
+            path="/counselor"
             element={
-              <ProtectedRoute requiredRole="admin">
+              <ProtectedRoute requiredRole="counselor">
                 <AdminDashboard />
               </ProtectedRoute>
             }
           />
           <Route
-            path="/admin/assessments"
+            path="/counselor/assessments"
             element={
-              <ProtectedRoute requiredRole="admin">
+              <ProtectedRoute requiredRole="counselor">
                 <AdminAssessmentsPage />
               </ProtectedRoute>
             }
           />
           <Route
-            path="/admin/risk-monitoring"
+            path="/counselor/risk-monitoring"
             element={
-              <ProtectedRoute requiredRole="admin">
+              <ProtectedRoute requiredRole="counselor">
                 <AdminRiskMonitoringPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Legacy /admin redirects → /counselor */}
+          <Route path="/admin" element={<Navigate to="/counselor" replace />} />
+          <Route path="/admin/assessments" element={<Navigate to="/counselor/assessments" replace />} />
+          <Route path="/admin/risk-monitoring" element={<Navigate to="/counselor/risk-monitoring" replace />} />
+
+          {/* Super Admin Routes */}
+          <Route
+            path="/superadmin"
+            element={
+              <ProtectedRoute requiredRole="superadmin">
+                <SuperAdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/superadmin/users"
+            element={
+              <ProtectedRoute requiredRole="superadmin">
+                <SuperAdminUsersPage />
               </ProtectedRoute>
             }
           />

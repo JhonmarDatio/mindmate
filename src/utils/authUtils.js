@@ -1,199 +1,264 @@
-// Mock users for local development
-const MOCK_USERS = {
-  'student@test.com': {
-    id: 'user-student-1',
-    email: 'student@test.com',
-    password: 'password1234',
-    name: 'Test Student',
-    role: 'student',
-    consent_status: false,
-    created_at: new Date().toISOString(),
-  },
-  'admin@test.com': {
-    id: 'user-admin-1',
-    email: 'admin@test.com',
-    password: 'password123',
-    name: 'Test Admin',
-    role: 'admin',
-    consent_status: true,
-    created_at: new Date().toISOString(),
-  },
-}
+import { supabase } from '../supabaseClient'
 
-// Initialize mock data
-const initMockData = () => {
-  const existingUsers = localStorage.getItem('mindmate_users')
-  if (!existingUsers) {
-    localStorage.setItem('mindmate_users', JSON.stringify(MOCK_USERS))
-  }
-  
-  const existingSession = localStorage.getItem('mindmate_current_user')
-  if (!existingSession) {
-    localStorage.setItem('mindmate_current_user', JSON.stringify(null))
-  }
-}
+// ============================================================
+// AUTHENTICATION UTILITIES — SUPABASE EDITION
+// ============================================================
 
-initMockData()
-
-// Sign up a new user
+/**
+ * Sign up a new user with email and password
+ * Creates user in auth.users and profile in profiles table
+ */
 export const signUp = async (email, password, name, role = 'student') => {
   try {
-    const users = JSON.parse(localStorage.getItem('mindmate_users') || '{}')
-    
-    if (users[email]) {
-      return { success: false, error: 'Email already exists' }
-    }
-
-    const newUser = {
-      id: `user-${Date.now()}`,
+    // 1. Create auth user
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
-      name,
-      role,
-      consent_status: false,
-      created_at: new Date().toISOString(),
+      options: {
+        data: {
+          name,
+          role,
+        },
+      },
+    })
+
+    if (authError) {
+      console.error('SignUp auth error:', authError)
+      return { success: false, error: authError.message }
     }
 
-    users[email] = newUser
-    localStorage.setItem('mindmate_users', JSON.stringify(users))
+    if (!authData.user) {
+      return { success: false, error: 'User creation failed' }
+    }
 
-    return { success: true, user: newUser }
+    // 2. Create profile (the trigger should do this, but we'll ensure it)
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert({
+        id: authData.user.id,
+        name,
+        role,
+        consent_status: false,
+      })
+
+    if (profileError && !profileError.message.includes('duplicate')) {
+      console.error('Profile creation error:', profileError)
+      // Don't fail signup if profile already exists
+    }
+
+    return {
+      success: true,
+      user: {
+        id: authData.user.id,
+        email: authData.user.email,
+        user_metadata: { name, role },
+      },
+    }
   } catch (error) {
+    console.error('SignUp error:', error)
     return { success: false, error: error.message }
   }
 }
 
-// Sign in user
+/**
+ * Sign in user with email and password
+ */
 export const signIn = async (email, password) => {
   try {
-    console.log('SignIn attempt:', { email, password })
-    const users = JSON.parse(localStorage.getItem('mindmate_users') || '{}')
-    console.log('Available users:', Object.keys(users))
-    console.log('Stored users data:', users)
-    const user = users[email]
-    console.log('Found user:', user)
+    console.log('SignIn attempt:', { email })
 
-    if (!user || user.password !== password) {
-      console.log('Authentication failed:', { userExists: !!user, passwordMatch: user?.password === password })
-      return { success: false, error: 'Invalid email or password' }
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error) {
+      console.error('SignIn error:', error)
+      return { success: false, error: error.message }
+    }
+
+    if (!data.user) {
+      return { success: false, error: 'Sign in failed' }
+    }
+
+    // Fetch the profile to get role
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, name')
+      .eq('id', data.user.id)
+      .single()
+
+    if (profileError) {
+      console.error('Profile fetch error:', profileError)
+      // Continue anyway, use metadata as fallback
     }
 
     const session = {
       user: {
-        id: user.id,
-        email: user.email,
+        id: data.user.id,
+        email: data.user.email,
         user_metadata: {
-          name: user.name,
-          role: user.role,
+          name: profileData?.name || data.user.user_metadata?.name || '',
+          role: profileData?.role || data.user.user_metadata?.role || 'student',
         },
       },
     }
 
-    localStorage.setItem('mindmate_current_user', JSON.stringify(session.user))
+    console.log('SignIn success:', session)
     return { success: true, user: session.user, session }
   } catch (error) {
+    console.error('SignIn exception:', error)
     return { success: false, error: error.message }
   }
 }
 
+/**
+ * Send password reset email
+ */
 export const sendPasswordReset = async (email) => {
   try {
-    const users = JSON.parse(localStorage.getItem('mindmate_users') || '{}')
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
 
-    if (!users[email]) {
-      return { success: false, error: 'No account found with that email address' }
+    if (error) {
+      console.error('Password reset error:', error)
+      return { success: false, error: error.message }
     }
 
     return { success: true }
   } catch (error) {
+    console.error('Password reset exception:', error)
     return { success: false, error: error.message }
   }
 }
 
-// Sign out user
+/**
+ * Sign out current user
+ */
 export const signOut = async () => {
   try {
-    localStorage.setItem('mindmate_current_user', JSON.stringify(null))
+    const { error } = await supabase.auth.signOut()
+
+    if (error) {
+      console.error('SignOut error:', error)
+      return { success: false, error: error.message }
+    }
+
     return { success: true }
   } catch (error) {
+    console.error('SignOut exception:', error)
     return { success: false, error: error.message }
   }
 }
 
-// Get current session
+/**
+ * Get current session
+ */
 export const getCurrentSession = async () => {
   try {
-    const user = JSON.parse(localStorage.getItem('mindmate_current_user') || 'null')
-    if (user) {
-      return { session: { user }, error: null }
-    } else {
-      return { session: null, error: null }
+    const { data, error } = await supabase.auth.getSession()
+
+    if (error) {
+      console.error('Get session error:', error)
+      return { session: null, error: error.message }
     }
+
+    return { session: data.session, error: null }
   } catch (error) {
+    console.error('Get session exception:', error)
     return { session: null, error: error.message }
   }
 }
 
-// Get current user
+/**
+ * Get current user
+ */
 export const getCurrentUser = async () => {
   try {
-    const user = JSON.parse(localStorage.getItem('mindmate_current_user') || 'null')
-    return { user, error: null }
+    const { data, error } = await supabase.auth.getUser()
+
+    if (error) {
+      console.error('Get user error:', error)
+      return { user: null, error: error.message }
+    }
+
+    return { user: data.user, error: null }
   } catch (error) {
+    console.error('Get user exception:', error)
     return { user: null, error: error.message }
   }
 }
 
-// Get user profile from users table
+/**
+ * Get user profile from profiles table
+ */
 export const getUserProfile = async (userId) => {
   try {
-    const users = JSON.parse(localStorage.getItem('mindmate_users') || '{}')
-    const profile = Object.values(users).find((u) => u.id === userId)
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
 
-    if (!profile) {
-      return { profile: null, error: 'User not found' }
+    if (error) {
+      console.error('Get profile error:', error)
+      return { profile: null, error: error.message }
     }
 
-    return { profile, error: null }
+    return { profile: data, error: null }
   } catch (error) {
+    console.error('Get profile exception:', error)
     return { profile: null, error: error.message }
   }
 }
 
-// Update user profile
+/**
+ * Update user profile
+ */
 export const updateUserProfile = async (userId, updates) => {
   try {
-    const users = JSON.parse(localStorage.getItem('mindmate_users') || '{}')
-    const userEntry = Object.entries(users).find(([_, u]) => u.id === userId)
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userId)
+      .select()
+      .single()
 
-    if (!userEntry) {
-      return { profile: null, error: 'User not found' }
+    if (error) {
+      console.error('Update profile error:', error)
+      return { profile: null, error: error.message }
     }
 
-    const [email, user] = userEntry
-    const updatedUser = { ...user, ...updates }
-    users[email] = updatedUser
-
-    localStorage.setItem('mindmate_users', JSON.stringify(users))
-    return { profile: updatedUser, error: null }
+    return { profile: data, error: null }
   } catch (error) {
+    console.error('Update profile exception:', error)
     return { profile: null, error: error.message }
   }
 }
 
-// Listen to auth state changes
+/**
+ * Listen to auth state changes
+ * Returns unsubscribe function
+ */
 export const onAuthStateChange = (callback) => {
-  const checkAuth = async () => {
-    const { session } = await getCurrentSession()
-    callback(session)
-  }
+  try {
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state changed:', event, session?.user?.email)
+      callback(session)
+    })
 
-  checkAuth()
-
-  // Simulate checking for changes every second
-  const interval = setInterval(checkAuth, 1000)
-
-  return {
-    unsubscribe: () => clearInterval(interval),
+    return {
+      unsubscribe: () => {
+        if (data?.subscription) {
+          data.subscription.unsubscribe()
+        }
+      },
+    }
+  } catch (error) {
+    console.error('Auth state listener error:', error)
+    return {
+      unsubscribe: () => {},
+    }
   }
 }

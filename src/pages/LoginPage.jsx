@@ -1,17 +1,35 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { signIn } from '../utils/authUtils'
 import { useAuth } from '../contexts/AuthContext'
-import { Brain, Users,Smile, MessagesSquare, AlertTriangle, BookOpen } from 'lucide-react'
+import { Brain, Smile, MessagesSquare, AlertTriangle, BookOpen } from 'lucide-react'
 
 const LoginPage = () => {
   const navigate = useNavigate()
-  const { login } = useAuth()
-
+  const { profile, isAuthenticated } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [pendingRedirect, setPendingRedirect] = useState(false)
+
+  // Once profile loads after login, redirect to the correct page
+  useEffect(() => {
+    if (pendingRedirect && isAuthenticated && profile?.role) {
+      const role = profile.role
+      console.log('=== REDIRECT DEBUG ===')
+      console.log('profile:', profile)
+      console.log('role:', role)
+      if (role === 'superadmin') {
+        navigate('/superadmin', { replace: true })
+      } else if (role === 'counselor') {
+        navigate('/counselor', { replace: true })
+      } else {
+        navigate('/', { replace: true })
+      }
+      setPendingRedirect(false)
+    }
+  }, [pendingRedirect, isAuthenticated, profile, navigate])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -26,14 +44,8 @@ const LoginPage = () => {
         return
       }
 
-      await login(email, password)
-
-      if (authResult.user?.user_metadata?.role === 'admin') {
-        navigate('/admin')
-      } else {
-        navigate('/')
-      }
-
+      // Tell the effect above to redirect once profile is ready
+      setPendingRedirect(true)
     } catch (err) {
       setError('An unexpected error occurred')
     } finally {

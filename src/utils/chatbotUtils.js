@@ -48,27 +48,27 @@ const SUPPORTIVE_RESPONSES = {
 
 const CRISIS_RESPONSES = {
   initial:
-    "I'm deeply concerned about what you've shared. Your safety is the most important thing right now. Please reach out to someone who can help immediately.",
+    "Nag-aalala ako sa iyong sinabi. Ang iyong kaligtasan ang pinakamahalagang bagay ngayon. Mangyaring makipag-ugnayan sa isang taong makakatulong sa iyo agad.",
   resources: [
     {
-      name: "National Suicide Prevention Lifeline (USA)",
-      number: "988",
-      description: "Call or text 988 anytime, day or night",
+      name: "National Center for Mental Health (NCMH) Crisis Hotline",
+      number: "1553",
+      description: "Libre, 24/7 — tawagan anumang oras ng araw o gabi",
     },
     {
-      name: "Crisis Text Line (USA)",
-      number: "Text HOME to 741741",
-      description: "Text-based crisis support",
+      name: "In Touch Crisis Line",
+      number: "(02) 8893-7603 / 0917-800-1123",
+      description: "24/7 emotional support at crisis intervention",
     },
     {
-      name: "Philippine Crisis Hotline",
-      number: "(02) 7954-4673",
-      description: "24/7 crisis counseling support",
+      name: "Hopeline Philippines",
+      number: "(02) 8804-4673 / 0917-558-4673",
+      description: "24/7 suicide prevention hotline",
     },
     {
-      name: "Your School Counselor",
-      number: "Contact your guidance office",
-      description: "Immediate support at your school",
+      name: "Iyong School Counselor",
+      number: "Makipag-ugnayan sa guidance office",
+      description: "Agarang suporta sa iyong paaralan",
     },
   ],
 }
@@ -142,25 +142,26 @@ export const processChatMessage = (userMessage) => {
 
 export const HOTLINE_INFO = [
   {
-    name: "National Suicide Prevention Lifeline (USA)",
-    number: "988",
-    url: "https://988lifeline.org",
+    name: "NCMH Crisis Hotline",
+    number: "1553",
+    description: "National Center for Mental Health — libre, 24/7",
     available: "24/7",
   },
   {
-    name: "Crisis Text Line (USA)",
-    number: "Text HOME to 741741",
-    url: "https://www.crisistextline.org",
+    name: "In Touch Crisis Line",
+    number: "(02) 8893-7603 / 0917-800-1123",
+    description: "24/7 emotional support at crisis intervention",
     available: "24/7",
   },
   {
-    name: "Philippine Crisis Hotline",
-    number: "(02) 7954-4673",
+    name: "Hopeline Philippines",
+    number: "(02) 8804-4673 / 0917-558-4673",
+    description: "24/7 suicide prevention hotline",
     available: "24/7",
   },
   {
     name: "International Association for Suicide Prevention",
     url: "https://www.iasp.info/resources/Crisis_Centres/",
-    description: "Find hotlines in your country",
+    description: "Hanapin ang hotline sa iyong bansa",
   },
 ]

@@ -1,39 +1,55 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ShieldCheck } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { ShieldCheck, History, ChevronDown, ChevronUp } from 'lucide-react'
 
 import { StudentLayout } from '../components/Layout'
 import { useAuth } from '../contexts/AuthContext'
 
-import { submitAssessment } from '../utils/databaseUtils'
+import { submitAssessment, getUserAssessments } from '../utils/databaseUtils'
 
 import {
   ASSESSMENT_QUESTIONS,
   calculateScore,
   calculatePercentage,
   getStressLevel,
+  getDomainBreakdown,
 } from '../utils/assessmentUtils'
+
+const levelBadge = {
+  Low:      'bg-green-50 text-green-700 border-green-200',
+  Mild:     'bg-yellow-50 text-yellow-700 border-yellow-200',
+  Moderate: 'bg-orange-50 text-orange-700 border-orange-200',
+  High:     'bg-red-50 text-red-700 border-red-200',
+}
+
+const levelBar = {
+  Low: 'bg-green-400', Mild: 'bg-yellow-400', Moderate: 'bg-orange-400', High: 'bg-red-500',
+}
 
 const AssessmentPage = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
 
-  const [currentQuestion, setCurrentQuestion] =
-    useState(0)
-
-  const [answers, setAnswers] = useState(
-    Array(ASSESSMENT_QUESTIONS.length).fill(null)
-  )
-
-  const [consentChecked, setConsentChecked] =
-    useState(false)
-
-  const [showConsentPage, setShowConsentPage] =
-    useState(false)
-
+  const [currentQuestion, setCurrentQuestion] = useState(0)
+  const [answers, setAnswers] = useState(Array(ASSESSMENT_QUESTIONS.length).fill(null))
+  const [consentChecked, setConsentChecked] = useState(false)
+  const [showConsentPage, setShowConsentPage] = useState(false)
   const [loading, setLoading] = useState(false)
-
   const [error, setError] = useState('')
+
+  // History
+  const [history, setHistory] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(true)
+  const [showHistory, setShowHistory] = useState(false)
+
+  useEffect(() => {
+    if (user) {
+      getUserAssessments(user.id).then(({ assessments }) => {
+        setHistory(assessments || [])
+        setHistoryLoading(false)
+      })
+    }
+  }, [user])
 
   // AUTO NEXT QUESTION
   const handleAnswerChange = (score) => {
@@ -87,19 +103,21 @@ const AssessmentPage = () => {
 
     try {
       const score = calculateScore(answers)
+      const percentage = calculatePercentage(score)
+      const stressLevel = getStressLevel(percentage)
 
-      const percentage =
-        calculatePercentage(score)
-
-      const stressLevel =
-        getStressLevel(percentage)
+      // Compute domain scores to save alongside the assessment
+      const domainBreakdown = getDomainBreakdown(answers)
+      const domainScores = {}
+      domainBreakdown.forEach((d) => { domainScores[d.domain] = d.percentage })
 
       const result = await submitAssessment(
         user.id,
         score,
         percentage,
         stressLevel,
-        consentChecked
+        consentChecked,
+        domainScores
       )
 
       if (!result.success) {
@@ -116,6 +134,7 @@ const AssessmentPage = () => {
       navigate('/assessment-result', {
         state: {
           assessment: result.assessment,
+          answers,
         },
       })
     } catch (err) {
@@ -358,6 +377,86 @@ const AssessmentPage = () => {
               )}
             </div>
           </>
+        )}
+      </div>
+
+      {/* ── PREVIOUS RESULTS ── */}
+      <div className="max-w-2xl mx-auto mt-8">
+        <button
+          onClick={() => setShowHistory((v) => !v)}
+          className="w-full flex items-center justify-between px-5 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm hover:border-teal-300 transition"
+        >
+          <div className="flex items-center gap-2">
+            <History className="w-5 h-5 text-teal-600" />
+            <span className="font-semibold text-gray-800 text-sm">Previous Assessment Results</span>
+            {history.length > 0 && (
+              <span className="text-xs bg-teal-100 text-teal-700 font-bold px-2 py-0.5 rounded-full">
+                {history.length}
+              </span>
+            )}
+          </div>
+          {showHistory
+            ? <ChevronUp className="w-4 h-4 text-gray-400" />
+            : <ChevronDown className="w-4 h-4 text-gray-400" />}
+        </button>
+
+        {showHistory && (
+          <div className="mt-2 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            {historyLoading ? (
+              <p className="text-center text-sm text-gray-400 py-8">Loading history...</p>
+            ) : history.length === 0 ? (
+              <p className="text-center text-sm text-gray-400 py-8">No previous assessments found.</p>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {history.map((a, i) => (
+                  <div key={a.id || i} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition">
+                    {/* Number */}
+                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-bold text-gray-500">{history.length - i}</span>
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${levelBadge[a.stress_level] || 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+                          {a.stress_level}
+                        </span>
+                        <span className="text-xs text-gray-500 font-medium">{a.percentage}%</span>
+                      </div>
+                      {/* Progress bar */}
+                      <div className="w-full bg-gray-100 rounded-full h-1.5">
+                        <div
+                          className={`h-1.5 rounded-full ${levelBar[a.stress_level] || 'bg-gray-300'}`}
+                          style={{ width: `${a.percentage}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Date */}
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-xs text-gray-500 font-medium">
+                        {new Date(a.created_at).toLocaleDateString('en-US', {
+                          month: 'short', day: 'numeric', year: 'numeric',
+                        })}
+                      </p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        {new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+
+                    {/* View result link */}
+                    <Link
+                      to="/assessment-result"
+                      state={{ assessment: a }}
+                      className="flex-shrink-0 text-xs text-teal-600 hover:text-teal-700 font-semibold bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-xl transition"
+                    >
+                      View
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </StudentLayout>

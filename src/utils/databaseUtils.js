@@ -1,61 +1,27 @@
-// localDatabaseUtils.js
-
-// =======================
-// HELPERS
-// =======================
-
-const getUsersObject = () => {
-  return JSON.parse(localStorage.getItem('mindmate_users') || '{}')
-}
-
-const getUsersArray = () => {
-  return Object.values(getUsersObject())
-}
-
-export const getData = (key) => {
-  return JSON.parse(localStorage.getItem(key)) || []
-}
-
-const saveData = (key, data) => {
-  localStorage.setItem(key, JSON.stringify(data))
-}
-
-// =======================
-// AUTH (READ ONLY - AUTH FILE NA BAHALA SA LOGIN)
-// =======================
-
-export const getCurrentUser = () => {
-  return JSON.parse(localStorage.getItem('mindmate_current_user'))
-}
+// databaseUtils.js — Supabase edition
+import { supabase } from '../supabaseClient'
 
 // =======================
 // ASSESSMENT
 // =======================
 
-export const submitAssessment = async (
-  userId,
-  score,
-  percentage,
-  stressLevel,
-  consentStatus
-) => {
+export const submitAssessment = async (userId, score, percentage, stressLevel, consentStatus, domainScores = null) => {
   try {
-    const assessments = getData('assessments')
+    const { data, error } = await supabase
+      .from('assessments')
+      .insert({
+        user_id: userId,
+        score,
+        percentage,
+        stress_level: stressLevel,
+        consent_status: consentStatus,
+        domain_scores: domainScores,
+      })
+      .select()
+      .single()
 
-    const newAssessment = {
-      id: Date.now(),
-      user_id: userId,
-      score,
-      percentage,
-      stress_level: stressLevel,
-      consent_status: consentStatus,
-      created_at: new Date().toISOString(),
-    }
-
-    assessments.push(newAssessment)
-    saveData('assessments', assessments)
-
-    return { success: true, assessment: newAssessment }
+    if (error) return { success: false, error: error.message }
+    return { success: true, assessment: data }
   } catch (error) {
     return { success: false, error: error.message }
   }
@@ -63,10 +29,13 @@ export const submitAssessment = async (
 
 export const getUserAssessments = async (userId) => {
   try {
-    const data = getData('assessments')
-      .filter((a) => a.user_id === userId)
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    const { data, error } = await supabase
+      .from('assessments')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
 
+    if (error) return { assessments: null, error: error.message }
     return { assessments: data, error: null }
   } catch (error) {
     return { assessments: null, error: error.message }
@@ -75,11 +44,16 @@ export const getUserAssessments = async (userId) => {
 
 export const getLatestAssessment = async (userId) => {
   try {
-    const data = getData('assessments')
-      .filter((a) => a.user_id === userId)
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    const { data, error } = await supabase
+      .from('assessments')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
 
-    return { assessment: data[0] || null, error: null }
+    if (error && error.code !== 'PGRST116') return { assessment: null, error: error.message }
+    return { assessment: data || null, error: null }
   } catch (error) {
     return { assessment: null, error: error.message }
   }
@@ -91,20 +65,14 @@ export const getLatestAssessment = async (userId) => {
 
 export const logMood = async (userId, moodScore, notes = '') => {
   try {
-    const moods = getData('mood_tracking')
+    const { data, error } = await supabase
+      .from('mood_tracking')
+      .insert({ user_id: userId, mood_score: moodScore, notes })
+      .select()
+      .single()
 
-    const newMood = {
-      id: Date.now(),
-      user_id: userId,
-      mood_score: moodScore,
-      notes,
-      created_at: new Date().toISOString(),
-    }
-
-    moods.push(newMood)
-    saveData('mood_tracking', moods)
-
-    return { success: true, mood: newMood }
+    if (error) return { success: false, error: error.message }
+    return { success: true, mood: data }
   } catch (error) {
     return { success: false, error: error.message }
   }
@@ -115,15 +83,15 @@ export const getUserMoodHistory = async (userId, days = 30) => {
     const startDate = new Date()
     startDate.setDate(startDate.getDate() - days)
 
-    const moods = getData('mood_tracking')
-      .filter(
-        (m) =>
-          m.user_id === userId &&
-          new Date(m.created_at) >= startDate
-      )
-      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    const { data, error } = await supabase
+      .from('mood_tracking')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('created_at', startDate.toISOString())
+      .order('created_at', { ascending: true })
 
-    return { moods, error: null }
+    if (error) return { moods: null, error: error.message }
+    return { moods: data, error: null }
   } catch (error) {
     return { moods: null, error: error.message }
   }
@@ -133,28 +101,16 @@ export const getUserMoodHistory = async (userId, days = 30) => {
 // CHAT
 // =======================
 
-export const saveChatMessage = async (
-  userId,
-  message,
-  response,
-  riskFlag = false
-) => {
+export const saveChatMessage = async (userId, message, response, riskFlag = false, sessionId = null) => {
   try {
-    const chats = getData('chatbot_logs')
+    const { data, error } = await supabase
+      .from('chatbot_logs')
+      .insert({ user_id: userId, message, response, risk_flag: riskFlag, session_id: sessionId })
+      .select()
+      .single()
 
-    const newChat = {
-      id: Date.now(),
-      user_id: userId,
-      message,
-      response,
-      risk_flag: riskFlag,
-      created_at: new Date().toISOString(),
-    }
-
-    chats.push(newChat)
-    saveData('chatbot_logs', chats)
-
-    return { success: true, log: newChat }
+    if (error) return { success: false, error: error.message }
+    return { success: true, log: data }
   } catch (error) {
     return { success: false, error: error.message }
   }
@@ -162,11 +118,61 @@ export const saveChatMessage = async (
 
 export const getUserChatHistory = async (userId) => {
   try {
-    const chats = getData('chatbot_logs')
-      .filter((c) => c.user_id === userId)
-      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    const { data, error } = await supabase
+      .from('chatbot_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
 
-    return { chats, error: null }
+    if (error) return { chats: null, error: error.message }
+    return { chats: data, error: null }
+  } catch (error) {
+    return { chats: null, error: error.message }
+  }
+}
+
+export const getChatSessions = async (userId) => {
+  try {
+    // Group chats by session_id, get the first message of each session as preview
+    const { data, error } = await supabase
+      .from('chatbot_logs')
+      .select('session_id, message, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+
+    if (error) return { sessions: [], error: error.message }
+
+    // Deduplicate by session_id, keep the earliest message as title
+    const sessionMap = new Map()
+    ;(data || []).forEach((row) => {
+      const sid = row.session_id || 'default'
+      if (!sessionMap.has(sid)) {
+        sessionMap.set(sid, {
+          session_id: sid,
+          preview: row.message?.slice(0, 50) || 'Chat',
+          created_at: row.created_at,
+        })
+      }
+    })
+
+    const sessions = Array.from(sessionMap.values())
+    return { sessions, error: null }
+  } catch (error) {
+    return { sessions: [], error: error.message }
+  }
+}
+
+export const getSessionMessages = async (userId, sessionId) => {
+  try {
+    const { data, error } = await supabase
+      .from('chatbot_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: true })
+
+    if (error) return { chats: null, error: error.message }
+    return { chats: data, error: null }
   } catch (error) {
     return { chats: null, error: error.message }
   }
@@ -174,11 +180,14 @@ export const getUserChatHistory = async (userId) => {
 
 export const getHighRiskMessages = async () => {
   try {
-    const chats = getData('chatbot_logs')
-      .filter((c) => c.risk_flag === true)
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    const { data, error } = await supabase
+      .from('chatbot_logs')
+      .select('*')
+      .eq('risk_flag', true)
+      .order('created_at', { ascending: false })
 
-    return { riskMessages: chats, error: null }
+    if (error) return { riskMessages: null, error: error.message }
+    return { riskMessages: data, error: null }
   } catch (error) {
     return { riskMessages: null, error: error.message }
   }
@@ -186,36 +195,42 @@ export const getHighRiskMessages = async () => {
 
 export const getHighRiskStudents = async () => {
   try {
-    const assessments = getData('assessments')
-    const users = JSON.parse(localStorage.getItem('mindmate_users') || '{}')
-    
-    // Get latest assessment for each student
-    const latestAssessments = {}
-    assessments.forEach(assessment => {
-      if (assessment.consent_status === true) {
-        if (!latestAssessments[assessment.user_id] || 
-            new Date(assessment.created_at) > new Date(latestAssessments[assessment.user_id].created_at)) {
-          latestAssessments[assessment.user_id] = assessment
-        }
-      }
+    const { data, error } = await supabase
+      .from('assessments')
+      .select('*')
+      .eq('consent_status', true)
+      .in('stress_level', ['High', 'Moderate'])
+      .order('created_at', { ascending: false })
+
+    if (error) return { highRiskStudents: null, error: error.message }
+
+    // Keep only the latest per user
+    const seen = new Set()
+    const latest = (data || []).filter((a) => {
+      if (seen.has(a.user_id)) return false
+      seen.add(a.user_id)
+      return true
     })
 
-    // Filter for high-risk students
-    const highRiskStudents = Object.values(latestAssessments)
-      .filter(assessment => assessment.stress_level === 'High' || assessment.stress_level === 'Moderate')
-      .map(assessment => {
-        const user = Object.values(users).find(u => u.id === assessment.user_id)
-        return {
-          id: user?.id || 'unknown',
-          name: user?.name || 'Anonymous',
-          email: user?.email || 'no-consent@example.com',
-          stress_level: assessment.stress_level,
-          percentage: assessment.percentage,
-          date: assessment.created_at,
-          has_consent: user?.consent_status || false
-        }
-      })
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
+    // Fetch profiles for these users
+    const userIds = latest.map((a) => a.user_id)
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('id, name, email')
+      .in('id', userIds)
+
+    const profileMap = {}
+    ;(profilesData || []).forEach((p) => { profileMap[p.id] = p })
+
+    const highRiskStudents = latest.map((a) => ({
+      id:           a.user_id,
+      name:         profileMap[a.user_id]?.name  || 'Anonymous',
+      email:        profileMap[a.user_id]?.email || '',
+      stress_level: a.stress_level,
+      percentage:   a.percentage,
+      date:         a.created_at,
+      has_consent:  a.consent_status,
+    }))
 
     return { highRiskStudents, error: null }
   } catch (error) {
@@ -224,31 +239,43 @@ export const getHighRiskStudents = async () => {
 }
 
 // =======================
-// ADMIN
+// COUNSELOR / ADMIN
 // =======================
 
-export const getAllAssessments = async (
-  filterStressLevel = null,
-  filterDate = null
-) => {
+export const getAllAssessments = async (filterStressLevel = null, filterDate = null) => {
   try {
-    let data = getData('assessments').filter(
-      (a) => a.consent_status === true
-    )
+    let query = supabase
+      .from('assessments')
+      .select('*')
+      .eq('consent_status', true)
+      .order('created_at', { ascending: false })
 
-    if (filterStressLevel) {
-      data = data.filter((a) => a.stress_level === filterStressLevel)
-    }
+    if (filterStressLevel) query = query.eq('stress_level', filterStressLevel)
+    if (filterDate) query = query.gte('created_at', new Date(filterDate).toISOString())
 
-    if (filterDate) {
-      data = data.filter(
-        (a) => new Date(a.created_at) >= new Date(filterDate)
-      )
-    }
+    const { data: assessmentData, error } = await query
+    if (error) return { assessments: null, error: error.message }
+    if (!assessmentData || assessmentData.length === 0) return { assessments: [], error: null }
 
-    data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    // Get all unique user_ids and fetch their profiles in one query
+    const userIds = [...new Set(assessmentData.map((a) => a.user_id))]
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('id, name, email')
+      .in('id', userIds)
 
-    return { assessments: data, error: null }
+    // Build a lookup map
+    const profileMap = {}
+    ;(profilesData || []).forEach((p) => { profileMap[p.id] = p })
+
+    // Merge profile data into each assessment
+    const assessments = assessmentData.map((a) => ({
+      ...a,
+      student_name:  profileMap[a.user_id]?.name  || null,
+      student_email: profileMap[a.user_id]?.email || null,
+    }))
+
+    return { assessments, error: null }
   } catch (error) {
     return { assessments: null, error: error.message }
   }
@@ -256,41 +283,189 @@ export const getAllAssessments = async (
 
 export const getDashboardStats = async () => {
   try {
-    const users = getUsersArray()
-    const assessments = getData('assessments')
+    // Total students
+    const { count: totalStudents } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', 'student')
 
-    const studentCount = users.filter((u) => u.role === 'student').length
+    // ALL consented assessments for distribution (not just latest per user)
+    const { data: assessments, error } = await supabase
+      .from('assessments')
+      .select('user_id, stress_level, created_at, consent_status')
+      .order('created_at', { ascending: false })
 
-    const latestAssessments = {}
+    if (error) return { stats: null, error: error.message }
 
-    assessments.forEach((a) => {
-      if (!latestAssessments[a.user_id]) {
-        latestAssessments[a.user_id] = a
-      }
+    // Chat log count
+    const { count: chatLogs } = await supabase
+      .from('chatbot_logs')
+      .select('*', { count: 'exact', head: true })
+
+    // Use ALL assessments for distribution (shows full picture)
+    const stressDistribution = { Low: 0, Mild: 0, Moderate: 0, High: 0 }
+    ;(assessments || []).forEach((a) => {
+      if (a.stress_level in stressDistribution) stressDistribution[a.stress_level]++
     })
 
-    const stressDistribution = {
-      Low: 0,
-      Mild: 0,
-      Moderate: 0,
-      High: 0,
-    }
+    const consentedCount = (assessments || []).filter((a) => a.consent_status === true).length
 
-    Object.values(latestAssessments).forEach((a) => {
-      if (a.stress_level in stressDistribution) {
-        stressDistribution[a.stress_level]++
-      }
-    })
+    console.log('stressDistribution:', stressDistribution)
 
     return {
       stats: {
-        totalStudents: studentCount,
+        totalStudents:    totalStudents || 0,
+        consentedCount,
         stressDistribution,
-        totalAssessments: Object.keys(latestAssessments).length,
+        totalAssessments: (assessments || []).length,
+        chatLogs:         chatLogs || 0,
       },
       error: null,
     }
   } catch (error) {
     return { stats: null, error: error.message }
+  }
+}
+
+// =======================
+// SUPER ADMIN
+// =======================
+
+export const getAllUsers = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, name, role, consent_status, created_at')
+      .order('created_at', { ascending: false })
+
+    if (error) return { users: null, error: error.message }
+    return { users: data, error: null }
+  } catch (error) {
+    return { users: null, error: error.message }
+  }
+}
+
+export const updateUserRole = async (userId, newRole) => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ role: newRole })
+      .eq('id', userId)
+      .select()
+      .single()
+
+    if (error) return { success: false, error: error.message }
+    return { success: true, profile: data }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+}
+
+export const deleteUser = async (userId) => {
+  try {
+    const { error } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', userId)
+
+    if (error) return { success: false, error: error.message }
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+}
+
+// Legacy helper — some pages still call getData() for superadmin stats
+// Returns empty array so nothing crashes while fully migrated
+export const getData = (_key) => []
+
+export const getSystemAnalytics = async () => {
+  try {
+    // Daily assessment submissions for the last 30 days
+    const since = new Date()
+    since.setDate(since.getDate() - 29)
+    since.setHours(0, 0, 0, 0)
+
+    const { data: assessments } = await supabase
+      .from('assessments')
+      .select('created_at, stress_level, consent_status')
+      .gte('created_at', since.toISOString())
+      .order('created_at', { ascending: true })
+
+    const { data: moods } = await supabase
+      .from('mood_tracking')
+      .select('created_at')
+      .gte('created_at', since.toISOString())
+
+    const { data: chats } = await supabase
+      .from('chatbot_logs')
+      .select('created_at')
+      .gte('created_at', since.toISOString())
+
+    // Build daily usage map (last 30 days)
+    const dayMap = {}
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(since)
+      d.setDate(since.getDate() + i)
+      const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      dayMap[key] = { date: key, assessments: 0, moods: 0, chats: 0 }
+    }
+
+    const toKey = (iso) =>
+      new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+    ;(assessments || []).forEach((a) => {
+      const k = toKey(a.created_at)
+      if (dayMap[k]) dayMap[k].assessments++
+    })
+    ;(moods || []).forEach((m) => {
+      const k = toKey(m.created_at)
+      if (dayMap[k]) dayMap[k].moods++
+    })
+    ;(chats || []).forEach((c) => {
+      const k = toKey(c.created_at)
+      if (dayMap[k]) dayMap[k].chats++
+    })
+
+    const usageData = Object.values(dayMap)
+
+    // Intervention success rate:
+    // Definition: % of students whose LATEST assessment improved (stress level went down)
+    // compared to their PREVIOUS assessment
+    const { data: allAssessments } = await supabase
+      .from('assessments')
+      .select('user_id, stress_level, created_at')
+      .order('created_at', { ascending: true })
+
+    const userHistory = {}
+    ;(allAssessments || []).forEach((a) => {
+      if (!userHistory[a.user_id]) userHistory[a.user_id] = []
+      userHistory[a.user_id].push(a.stress_level)
+    })
+
+    const LEVEL_NUM = { Low: 0, Mild: 1, Moderate: 2, High: 3 }
+    let improved = 0, worsened = 0, unchanged = 0, singleOnly = 0
+
+    Object.values(userHistory).forEach((history) => {
+      if (history.length < 2) { singleOnly++; return }
+      const prev = LEVEL_NUM[history[history.length - 2]] ?? 2
+      const curr = LEVEL_NUM[history[history.length - 1]] ?? 2
+      if (curr < prev) improved++
+      else if (curr > prev) worsened++
+      else unchanged++
+    })
+
+    const totalWithHistory = improved + worsened + unchanged
+    const successRate = totalWithHistory > 0
+      ? Math.round((improved / totalWithHistory) * 100)
+      : null
+
+    return {
+      usageData,
+      interventionStats: { improved, worsened, unchanged, singleOnly, successRate },
+      error: null,
+    }
+  } catch (error) {
+    return { usageData: [], interventionStats: null, error: error.message }
   }
 }

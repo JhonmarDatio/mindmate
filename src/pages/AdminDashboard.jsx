@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import { AdminLayout } from '../components/Layout'
-import { useAuth } from '../contexts/AuthContext'
-import { getDashboardStats, getData } from '../utils/databaseUtils'
+import { CounselorLayout } from '../components/Layout'
+import { getDashboardStats, getAllAssessments } from '../utils/databaseUtils'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { FileText, AlertTriangle, TrendingUp, Users, Eye, EyeOff } from 'lucide-react'
 
 const AdminDashboard = () => {
-  const { profile } = useAuth()
   const [stats, setStats] = useState(null)
   const [recentSubmissions, setRecentSubmissions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -17,21 +14,18 @@ const AdminDashboard = () => {
     const fetchStats = async () => {
       try {
         const { stats: dashboardStats, error: statsError } = await getDashboardStats()
-        
+
         if (statsError) {
           setError(statsError)
           setStats(null)
         } else {
           setStats(dashboardStats)
         }
-        
-        const assessments = getData('assessments') || []
-        const sortedAssessments = assessments
-          .filter(a => a && a.created_at && a.stress_level)
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-          .slice(0, 5)
-        
-        setRecentSubmissions(sortedAssessments)
+
+        // Recent submissions from Supabase (consented only, latest 5)
+        const { assessments } = await getAllAssessments()
+        const sorted = (assessments || []).slice(0, 5)
+        setRecentSubmissions(sorted)
       } catch (err) {
         console.error('Dashboard error:', err)
         setError(err.message)
@@ -73,17 +67,17 @@ const AdminDashboard = () => {
 
   if (error) {
     return (
-      <AdminLayout pageTitle="Counselor Dashboard">
+      <CounselorLayout pageTitle="Counselor Dashboard">
         <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl">
           <p className="font-semibold">Error loading dashboard:</p>
           <p className="text-sm">{error}</p>
         </div>
-      </AdminLayout>
+      </CounselorLayout>
     )
   }
 
   return (
-    <AdminLayout pageTitle="Counselor Dashboard">
+    <CounselorLayout pageTitle="Counselor Dashboard">
       <p className="text-gray-500 text-sm mb-8 -mt-2">Overview of student mental health assessment data.</p>
 
       {/* Quick Stats - 4 Columns Layout na may square indicators sa taas */}
@@ -121,7 +115,7 @@ const AdminDashboard = () => {
           <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
             <Users className="w-5 h-5 text-blue-400" />
           </div>
-          <p className="text-3xl font-bold text-gray-900">{loading ? '-' : stats?.totalStudents || 0}</p>
+          <p className="text-3xl font-bold text-gray-900">{loading ? '-' : stats?.consentedCount || 0}</p>
           <p className="text-gray-400 text-xs mt-1">Consented</p>
         </div>
 
@@ -243,7 +237,7 @@ const AdminDashboard = () => {
         <span className="text-sm -mt-0.5">ℹ️</span>
         <p className="leading-relaxed">This dashboard is a support tool only. Assessment results are for reference in face-to-face consultations. Final assessment and intervention must be done by a qualified counselor.</p>
       </div>
-    </AdminLayout>
+    </CounselorLayout>
   )
 }
 
