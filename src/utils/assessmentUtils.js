@@ -1,47 +1,85 @@
 // assessmentUtils.js
-// 7 Core Domains:
-// 1. Stress              2. Anxiety             3. Depression
-// 4. Emotional Well-being 5. Academic Pressure  6. Social Connectedness
-// 7. Sleep Quality
+// 7 Core Domains — 5 questions each (35 total question bank)
+// Daily rotation: picks 3 per domain based on the current date
+// Same day = same set. Different day = different set.
 
-export const ASSESSMENT_QUESTIONS_FULL = [
-  // 1. Stress (3 questions)
-  { text: "I feel overwhelmed by my responsibilities and tasks.", domain: "stress" },
-  { text: "I have difficulty managing my time and workload.", domain: "stress" },
-  { text: "I feel constant pressure that is hard to control.", domain: "stress" },
+// ── QUESTION BANK ─────────────────────────────────────────────
+const QUESTION_BANK = {
+  stress: [
+    "I feel overwhelmed by my responsibilities and tasks.",
+    "I have difficulty managing my time and workload.",
+    "I feel constant pressure that is hard to control.",
+    "I feel like I have too much to handle at once.",
+    "I find it hard to relax because of ongoing demands.",
+  ],
+  anxiety: [
+    "I feel nervous, anxious, or on edge frequently.",
+    "I experience panic attacks or sudden intense fear.",
+    "I worry excessively about things that might go wrong.",
+    "I feel restless or unable to calm my mind.",
+    "I avoid situations because they make me anxious.",
+  ],
+  depression: [
+    "I feel hopeless or empty about my future.",
+    "I have lost interest in activities I used to enjoy.",
+    "I feel unmotivated and have little energy to do things.",
+    "I feel sad or down most of the time.",
+    "I feel like nothing I do makes a difference.",
+  ],
+  emotional: [
+    "I feel irritable, angry, or emotionally unstable.",
+    "I feel disconnected from my body or surroundings.",
+    "I struggle to manage or express my emotions in healthy ways.",
+    "I feel emotionally drained after interacting with others.",
+    "I have sudden mood swings that are hard to control.",
+  ],
+  academic: [
+    "I feel anxious or stressed about my grades and academic performance.",
+    "I have difficulty concentrating or focusing during class or study.",
+    "I feel pressure to be perfect in my academic work.",
+    "I feel behind in my studies and unable to catch up.",
+    "I feel that academic expectations are too high for me.",
+  ],
+  social: [
+    "I feel lonely or isolated from my peers and classmates.",
+    "I have difficulty forming or maintaining meaningful relationships.",
+    "I feel misunderstood or unsupported by the people around me.",
+    "I avoid social situations because I feel uncomfortable.",
+    "I feel like I don't belong in my social environment.",
+  ],
+  sleep: [
+    "I have trouble falling or staying asleep due to worries.",
+    "I feel tired or exhausted even after a full night of sleep.",
+    "Poor sleep is affecting my mood and daily functioning.",
+    "I wake up in the middle of the night and can't go back to sleep.",
+    "I feel unrefreshed in the morning regardless of how long I slept.",
+  ],
+}
 
-  // 2. Anxiety (3 questions)
-  { text: "I feel nervous, anxious, or on edge frequently.", domain: "anxiety" },
-  { text: "I experience panic attacks or sudden intense fear.", domain: "anxiety" },
-  { text: "I worry excessively about things that might go wrong.", domain: "anxiety" },
+const DOMAIN_ORDER = ['stress', 'anxiety', 'depression', 'emotional', 'academic', 'social', 'sleep']
 
-  // 3. Depression (3 questions)
-  { text: "I feel hopeless or empty about my future.", domain: "depression" },
-  { text: "I have lost interest in activities I used to enjoy.", domain: "depression" },
-  { text: "I feel unmotivated and have little energy to do things.", domain: "depression" },
+/**
+ * Returns today's set of 3 questions per domain (21 total).
+ * Uses the day-of-year as a seed so it rotates daily but is
+ * consistent for everyone on the same day.
+ */
+export const getDailyQuestions = () => {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), 0, 0)
+  const dayOfYear = Math.floor((now - start) / 86400000) // 1–365
 
-  // 4. Emotional Well-being (3 questions)
-  { text: "I feel irritable, angry, or emotionally unstable.", domain: "emotional" },
-  { text: "I feel disconnected from my body or surroundings.", domain: "emotional" },
-  { text: "I struggle to manage or express my emotions in healthy ways.", domain: "emotional" },
+  return DOMAIN_ORDER.flatMap((domain) => {
+    const pool = QUESTION_BANK[domain]
+    // Pick 3 questions using the day as offset, cycling through the pool
+    return [0, 1, 2].map((i) => ({
+      text: pool[(dayOfYear + i) % pool.length],
+      domain,
+    }))
+  })
+}
 
-  // 5. Academic Pressure (3 questions)
-  { text: "I feel anxious or stressed about my grades and academic performance.", domain: "academic" },
-  { text: "I have difficulty concentrating or focusing during class or study.", domain: "academic" },
-  { text: "I feel pressure to be perfect in my academic work.", domain: "academic" },
-
-  // 6. Social Connectedness (3 questions)
-  { text: "I feel lonely or isolated from my peers and classmates.", domain: "social" },
-  { text: "I have difficulty forming or maintaining meaningful relationships.", domain: "social" },
-  { text: "I feel misunderstood or unsupported by the people around me.", domain: "social" },
-
-  // 7. Sleep Quality (3 questions)
-  { text: "I have trouble falling or staying asleep due to worries.", domain: "sleep" },
-  { text: "I feel tired or exhausted even after a full night of sleep.", domain: "sleep" },
-  { text: "Poor sleep is affecting my mood and daily functioning.", domain: "sleep" },
-]
-
-// Flat array of question texts (for the assessment page)
+// Static export for backward compat (uses today's questions)
+export const ASSESSMENT_QUESTIONS_FULL = getDailyQuestions()
 export const ASSESSMENT_QUESTIONS = ASSESSMENT_QUESTIONS_FULL.map((q) => q.text)
 
 // ── SCORING ───────────────────────────────────────────────────
@@ -63,12 +101,12 @@ export const getStressLevel = (percentage) => {
 }
 
 // ── DOMAIN BREAKDOWN ─────────────────────────────────────────
-// Returns per-domain scores and severity for the result page
-export const getDomainBreakdown = (answers) => {
+export const getDomainBreakdown = (answers, questionsOverride = null) => {
+  const questions = questionsOverride || getDailyQuestions()
   const domainScores = {}
   const domainCounts = {}
 
-  ASSESSMENT_QUESTIONS_FULL.forEach((q, i) => {
+  questions.forEach((q, i) => {
     const score = answers[i] || 0
     if (!domainScores[q.domain]) {
       domainScores[q.domain] = 0
@@ -90,7 +128,6 @@ export const getDomainBreakdown = (answers) => {
     }
   })
 
-  // Sort by percentage descending (highest concern first)
   return domains.sort((a, b) => b.percentage - a.percentage)
 }
 

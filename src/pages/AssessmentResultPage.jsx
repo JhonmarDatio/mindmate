@@ -207,12 +207,8 @@ export default function AssessmentResultPage() {
             </div>
           </div>
         )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
+            
+
 
         {/* ── TOP CONCERNS ── */}
         {topConcerns.length > 0 && (

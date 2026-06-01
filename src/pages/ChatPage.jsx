@@ -6,7 +6,7 @@ import {
   getChatSessions,
   getSessionMessages,
 } from '../utils/databaseUtils'
-import { processChatMessage } from '../utils/chatbotUtils'
+import { processChatMessage, detectCrisis } from '../utils/chatbotUtils'
 import {
   Send, AlertTriangle, Bot, User, Loader2,
   Plus, MessageSquare, ChevronLeft, ChevronRight, ShieldAlert,
@@ -18,15 +18,6 @@ const WELCOME = {
   role: 'assistant',
   content: "Hi there! 😊 I'm MindMate, your friendly AI companion. I'm here to listen and support you. How are you feeling today?",
 }
-
-const CRISIS_KEYWORDS = [
-  'suicide','kill myself','want to die','end my life','self-harm',
-  'hurt myself','hopeless','give up','no reason to live',
-  'want to end my life','ayoko na mabuhay','end it all','harm myself',
-  'cut myself','self harm','i am worthless','nobody cares','better off dead',
-]
-const detectDistress = (t) =>
-  CRISIS_KEYWORDS.some((k) => t.toLowerCase().includes(k))
 
 const genSessionId = () =>
   `session-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -121,9 +112,10 @@ export default function ChatPage() {
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     setLoading(true)
 
-    if (detectDistress(userMsg.content)) setRiskDetected(true)
+    if (detectCrisis(userMsg.content)) setRiskDetected(true)
 
-    const result = processChatMessage(userMsg.content)
+    // Pass conversation history for context-aware AI responses
+    const result = await processChatMessage(userMsg.content, messages)
     const botMsg = {
       id: `${Date.now()}-a`,
       role: 'assistant',

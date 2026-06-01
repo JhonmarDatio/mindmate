@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { submitAssessment, getUserAssessments } from '../utils/databaseUtils'
 
 import {
-  ASSESSMENT_QUESTIONS,
+  getDailyQuestions,
   calculateScore,
   calculatePercentage,
   getStressLevel,
@@ -29,6 +29,10 @@ const levelBar = {
 const AssessmentPage = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
+
+  // Get today's questions — rotates daily
+  const todayQuestions = getDailyQuestions()
+  const ASSESSMENT_QUESTIONS = todayQuestions.map((q) => q.text)
 
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [answers, setAnswers] = useState(Array(ASSESSMENT_QUESTIONS.length).fill(null))
@@ -106,8 +110,8 @@ const AssessmentPage = () => {
       const percentage = calculatePercentage(score)
       const stressLevel = getStressLevel(percentage)
 
-      // Compute domain scores to save alongside the assessment
-      const domainBreakdown = getDomainBreakdown(answers)
+      // Compute domain scores using today's questions
+      const domainBreakdown = getDomainBreakdown(answers, todayQuestions)
       const domainScores = {}
       domainBreakdown.forEach((d) => { domainScores[d.domain] = d.percentage })
 
