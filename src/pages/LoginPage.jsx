@@ -1,25 +1,52 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { signIn } from '../utils/authUtils'
-import { useAuth } from '../contexts/AuthContext'
-import { Brain, Smile, MessagesSquare, AlertTriangle, BookOpen } from 'lucide-react'
+import { signIn, resendVerificationEmail } from '../utils/authUtils'
+import { Brain, Smile, MessagesSquare, AlertTriangle, BookOpen, Eye, EyeOff } from 'lucide-react'
 
 const LoginPage = () => {
   const navigate = useNavigate()
-  const { profile, isAuthenticated } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [pendingRedirect, setPendingRedirect] = useState(false)
+  const [showResendEmail, setShowResendEmail] = useState(false)
+  const [resendingEmail, setResendingEmail] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
-  // Once profile loads after login, redirect to the correct page
-  useEffect(() => {
-    if (pendingRedirect && isAuthenticated && profile?.role) {
-      const role = profile.role
-      console.log('=== REDIRECT DEBUG ===')
-      console.log('profile:', profile)
-      console.log('role:', role)
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError('')
+    setShowResendEmail(false)
+    setLoading(true)
+
+    try {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(email)) {
+        setError('Please enter a valid email address')
+        setLoading(false)
+        return
+      }
+
+      if (!password || password.length < 6) {
+        setError('Please enter a valid password')
+        setLoading(false)
+        return
+      }
+
+      const authResult = await signIn(email, password)
+
+      if (!authResult.success) {
+        setError(authResult.error || 'Failed to sign in. Please check your credentials.')
+        if (authResult.error && authResult.error.includes('verify your email')) {
+          setShowResendEmail(true)
+        }
+        setLoading(false)
+        return
+      }
+
+      // Navigate immediately based on role in auth metadata — no extra DB fetch needed
+      const role = authResult.user?.user_metadata?.role || 'student'
+
       if (role === 'superadmin') {
         navigate('/superadmin', { replace: true })
       } else if (role === 'counselor') {
@@ -27,29 +54,32 @@ const LoginPage = () => {
       } else {
         navigate('/', { replace: true })
       }
-      setPendingRedirect(false)
-    }
-  }, [pendingRedirect, isAuthenticated, profile, navigate])
+      setLoading(false)
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+    } catch (err) {
+      console.error('Login error:', err)
+      setError('An unexpected error occurred. Please try again.')
+      setLoading(false)
+    }
+  }
+
+  const handleResendVerification = async () => {
+    setResendingEmail(true)
     setError('')
-    setLoading(true)
 
     try {
-      const authResult = await signIn(email, password)
+      const result = await resendVerificationEmail(email)
 
-      if (!authResult.success) {
-        setError(authResult.error || 'Failed to sign in')
-        return
+      if (result.success) {
+        navigate('/verify-email', { state: { email } })
+      } else {
+        setError(result.error || 'Failed to resend verification email')
       }
-
-      // Tell the effect above to redirect once profile is ready
-      setPendingRedirect(true)
     } catch (err) {
-      setError('An unexpected error occurred')
+      console.error('Resend error:', err)
+      setError('Failed to resend email. Please try again.')
     } finally {
-      setLoading(false)
+      setResendingEmail(false)
     }
   }
 
@@ -138,6 +168,15 @@ const LoginPage = () => {
         {error && (
           <div className="mb-4 p-3 rounded-xl bg-red-100 text-red-600 text-sm">
             {error}
+            {showResendEmail && (
+              <button
+                onClick={handleResendVerification}
+                disabled={resendingEmail}
+                className="mt-2 w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg text-sm font-semibold transition disabled:opacity-50"
+              >
+                {resendingEmail ? 'Sending...' : 'Resend Verification Email'}
+              </button>
+            )}
           </div>
         )}
 
@@ -153,14 +192,23 @@ const LoginPage = () => {
             className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 transition"
           />
 
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            placeholder="Password"
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 transition"
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              placeholder="Password"
+              className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 transition"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition"
+            >
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
 
           <div className="flex justify-end">
             <Link to="/forgot" className="text-sm text-gray-500 hover:text-teal-600">

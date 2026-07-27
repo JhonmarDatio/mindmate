@@ -10,24 +10,32 @@
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.profiles (
   id            UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email         TEXT UNIQUE,
   name          TEXT NOT NULL DEFAULT '',
   role          TEXT NOT NULL DEFAULT 'student'
                   CHECK (role IN ('student', 'counselor', 'superadmin')),
   consent_status BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Auto-create a profile row whenever a new user signs up
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, name, role, consent_status)
+  INSERT INTO public.profiles (id, email, name, role, consent_status)
   VALUES (
     NEW.id,
+    NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'name', ''),
     COALESCE(NEW.raw_user_meta_data->>'role', 'student'),
     FALSE
-  );
+  )
+  ON CONFLICT (id) DO UPDATE 
+  SET 
+    email = EXCLUDED.email,
+    name = COALESCE(EXCLUDED.name, profiles.name),
+    updated_at = NOW();
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -205,8 +213,13 @@ CREATE POLICY "chat: staff read risk"
 -- ============================================================
 -- 6. HELPER VIEW — counselor dashboard stats
 --    Safe aggregated view, no raw PII exposed
+--    Using SECURITY INVOKER (not DEFINER) for proper RLS enforcement
 -- ============================================================
-CREATE OR REPLACE VIEW public.dashboard_stats AS
+DROP VIEW IF EXISTS public.dashboard_stats;
+
+CREATE OR REPLACE VIEW public.dashboard_stats
+WITH (security_invoker = true)
+AS
 SELECT
   (SELECT COUNT(*) FROM public.profiles WHERE role = 'student')                          AS total_students,
   (SELECT COUNT(*) FROM public.assessments)                                               AS total_assessments,

@@ -5,13 +5,15 @@ import LoadingSpinner from './components/LoadingSpinner'
 // Pages
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import EmailVerificationPage from './pages/EmailVerificationPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 import StudentDashboard from './pages/StudentDashboard'
 import AssessmentPage from './pages/AssessmentPage'
 import AssessmentResultPage from './pages/AssessmentResultPage'
 import MoodTrackerPage from './pages/MoodTrackerPage'
 import ChatPage from './pages/ChatPage'
 import CopingStrategiesPage from './pages/CopingStrategiesPage'
-import ForgotPasswordPage from './pages/ForgotPasswordPage'
 
 // Counselor pages (previously "Admin")
 import AdminDashboard from './pages/AdminDashboard'
@@ -24,15 +26,20 @@ import SuperAdminUsersPage from './pages/SuperAdminUsersPage'
 
 // Protected Route Component
 const ProtectedRoute = ({ children, requiredRole = null }) => {
-  const { isAuthenticated, loading, profile } = useAuth()
+  const { isAuthenticated, loading, profile, user } = useAuth()
 
-  if (loading) return <LoadingSpinner />
+  // Not authenticated at all and done loading — send to login
+  if (!loading && !isAuthenticated) return <Navigate to="/login" replace />
 
-  if (!isAuthenticated) return <Navigate to="/login" replace />
+  // Still loading but no user yet — show spinner only on initial cold load
+  if (loading && !user) return <LoadingSpinner />
 
-  if (requiredRole && profile?.role !== requiredRole) {
-    // Redirect each role to their own home
-    const role = profile?.role
+  // We have a user — get role from profile (DB) or fallback to JWT metadata
+  const role = profile?.role || user?.user_metadata?.role || 'student'
+
+  // Role check — only redirect if we're sure about the role (profile loaded)
+  // If profile is still loading, render children optimistically to avoid flash
+  if (requiredRole && profile && role !== requiredRole) {
     if (role === 'superadmin') return <Navigate to="/superadmin" replace />
     if (role === 'counselor') return <Navigate to="/counselor" replace />
     return <Navigate to="/" replace />
@@ -49,7 +56,9 @@ const App = () => {
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/verify-email" element={<EmailVerificationPage />} />
           <Route path="/forgot" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
           {/* Student Routes */}
           <Route

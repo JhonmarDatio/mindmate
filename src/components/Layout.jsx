@@ -1,12 +1,17 @@
 import React from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { LogOut, Menu, X, Home, BarChart3, Users, Smile, MessagesSquare, AlertTriangle, BookOpen, ShieldCheck, UserCog } from 'lucide-react'
-import { signOut } from '../utils/authUtils'
+import { useAuth } from '../contexts/AuthContext'
 
-// role: 'student' | 'counselor' | 'superadmin'
 const Sidebar = ({ isOpen, setIsOpen, role = 'student' }) => {
   const navigate = useNavigate()
   const location = useLocation()
+  const { logout } = useAuth()
+
+  const handleLogout = async () => {
+    navigate('/login', { replace: true })
+    await logout()
+  }
 
   const studentLinks = [
     { label: 'Home', href: '/', icon: Home },
@@ -46,11 +51,6 @@ const Sidebar = ({ isOpen, setIsOpen, role = 'student' }) => {
   const hoverBg     = role === 'superadmin' ? 'hover:bg-gray-700' : 'hover:bg-teal-700'
   const borderColor = role === 'superadmin' ? 'border-gray-700/60' : 'border-teal-700/60'
   const mobileBtn   = role === 'superadmin' ? 'bg-gray-700' : 'bg-teal-600'
-
-  const handleLogout = async () => {
-    await signOut()
-    navigate('/login')
-  }
 
   const isActive = (href) => location.pathname === href
 

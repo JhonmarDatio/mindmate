@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { signUp } from '../utils/authUtils'
+import PasswordStrengthIndicator from '../components/PasswordStrengthIndicator'
+import { Eye, EyeOff } from 'lucide-react'
 
 const RegisterPage = () => {
   const navigate = useNavigate()
@@ -12,6 +14,8 @@ const RegisterPage = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -20,6 +24,21 @@ const RegisterPage = () => {
     setLoading(true)
 
     try {
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(email)) {
+        setError('Please enter a valid email address')
+        setLoading(false)
+        return
+      }
+
+      // Validate name
+      if (name.trim().length < 2) {
+        setError('Name must be at least 2 characters long')
+        setLoading(false)
+        return
+      }
+
       // Validate passwords match
       if (password !== confirmPassword) {
         setError('Passwords do not match')
@@ -34,6 +53,18 @@ const RegisterPage = () => {
         return
       }
 
+      // Check password complexity
+      const hasUpperCase = /[A-Z]/.test(password)
+      const hasLowerCase = /[a-z]/.test(password)
+      const hasNumbers = /\d/.test(password)
+      const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password)
+
+      if (!hasUpperCase || !hasLowerCase || !hasNumbers) {
+        setError('Password must contain uppercase, lowercase, and numbers')
+        setLoading(false)
+        return
+      }
+
       const result = await signUp(email, password, name, role)
 
       if (!result.success) {
@@ -42,12 +73,15 @@ const RegisterPage = () => {
         return
       }
 
-      setSuccess('Account created successfully! Please check your email to verify your account.')
+      // Always redirect to email verification page
+      setSuccess('Account created! Redirecting to email verification...')
+      
       setTimeout(() => {
-        navigate('/login')
+        navigate('/verify-email', { state: { email } })
       }, 2000)
     } catch (err) {
-      setError('An unexpected error occurred')
+      console.error('Registration error:', err)
+      setError('An unexpected error occurred. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -137,18 +171,26 @@ const RegisterPage = () => {
               Password
             </label>
 
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="••••••••"
-              className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-600"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-300 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-600"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition"
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
 
-            <p className="text-xs text-gray-500 mt-1">
-              At least 8 characters
-            </p>
+            {/* Password Strength Indicator */}
+            <PasswordStrengthIndicator password={password} />
           </div>
 
           {/* Confirm Password */}
@@ -157,14 +199,23 @@ const RegisterPage = () => {
               Confirm Password
             </label>
 
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              placeholder="••••••••"
-              className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-600"
-            />
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-300 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-600"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition"
+              >
+                {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
           </div>
 
           {/* Button (NO HOVER EFFECT) */}
